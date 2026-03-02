@@ -1,0 +1,12 @@
+
+name: grade_calculator
+description: A console application to calculate student grades from marks.
+version: 1.0.0
+
+environment:
+  sdk: ">=2.19.0 <4.0.0"
+
+dependencies:
+  archive: ^3.4.0
+  xml: ^6.3.0
+  args: ^2.4.0
