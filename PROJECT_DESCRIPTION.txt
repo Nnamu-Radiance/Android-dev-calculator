@@ -1,0 +1,109 @@
+================================================================================
+                         DART GRADE CALCULATOR
+                          PROJECT DESCRIPTION
+================================================================================
+
+PROJECT TITLE
+Dart Grade Calculator - Automated Student Grade Processing System
+
+BRIEF DESCRIPTION
+A Dart console application that automates the process of calculating student 
+grades and grade point averages (GPA) from raw marks. The application reads 
+student names and marks from an Excel file, applies a predefined grading scale, 
+and exports the results to a formatted Excel file with comprehensive console 
+output.
+
+DETAILED DESCRIPTION
+The Dart Grade Calculator is a command-line utility designed for educators and 
+academic institutions to efficiently process large datasets of student marks 
+and convert them into standardized grades. The application handles the complete 
+workflow from data ingestion to result export, with built-in validation and 
+error handling to ensure data integrity.
+
+KEY FEATURES
+• Excel File Processing: Read and write .xlsx files programmatically
+• Automated Grade Calculation: Instantly convert marks to letter grades and GPA
+• Data Validation: Validates marks are within the 0-100 range
+• Formatted Output: Displays results in an organized table format
+• Flexible File Handling: Accept custom input/output file paths via CLI
+• Error Handling: Graceful handling of invalid data and missing files
+• Scalable: Process 50+ students efficiently
+
+TECHNICAL STACK
+Language:      Dart (>=2.19.0)
+Platform:      Cross-platform (Windows, macOS, Linux)
+Key Libraries: archive, xml, args
+File Format:   Microsoft Excel (.xlsx)
+
+GRADING SCALE
+Grade   GPA     Mark Range
+A       4.0     80-100
+B+      3.5     70-79
+B       3.0     60-69
+C+      2.5     55-59
+C       2.0     50-54
+D+      1.5     45-49
+D       1.0     40-44
+F       0.0     0-39
+
+USE CASES
+1. Academic Institutions: Automated grading for large classes
+2. Educational Platforms: Bulk grade calculation for online courses
+3. Administrative Data Processing: Convert raw assessment data to standard grades
+4. Record Management: Generate standardized grade reports in spreadsheet format
+
+PROJECT GOALS
+✓ Streamline the grade calculation process
+✓ Eliminate manual grade computation errors
+✓ Provide exportable results in standard Excel format
+✓ Maintain data integrity with robust validation
+✓ Offer a simple, intuitive command-line interface
+
+FILE STRUCTURE
+CalculatorFM/
+├── calculator.dart          (Main application code)
+├── pubspec.yaml            (Project configuration & dependencies)
+└── PROJECT_DESCRIPTION.txt (This file)
+
+USAGE EXAMPLE
+$ dart calculator.dart students.xlsx results.xlsx
+
+INPUT REQUIREMENTS
+• Excel file with two columns minimum
+• Column A: Student Names (text)
+• Column B: Marks (numeric, 0-100 range)
+• Header row in first row
+
+OUTPUT GENERATED
+• Console table displaying all processed students
+• Excel file with four columns:
+  - Student Name
+  - Marks (original score)
+  - Grade (letter grade)
+  - GPA (grade point value)
+
+SYSTEM REQUIREMENTS
+• Dart SDK installation
+• Read/write permissions for file directories
+• Supported on Windows, macOS, and Linux
+
+PERFORMANCE
+• Processes 50+ students in seconds
+• Memory efficient for large datasets
+• Supports batch operations
+
+FUTURE ENHANCEMENTS
+• Support for multiple grading scales
+• PDF report generation
+• Statistical analysis (average, median, distribution)
+• Student ranking by grade
+• Custom GPA calculation methods
+• Database integration
+
+CONTACT & SUPPORT
+For issues or questions regarding this project, refer to the README file or 
+review the inline code comments for detailed implementation information.
+
+================================================================================
+                            END OF DESCRIPTION
+================================================================================
