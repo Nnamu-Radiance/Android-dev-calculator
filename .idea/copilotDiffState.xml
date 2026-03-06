@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CopilotDiffPersistence">
+    <option name="pendingDiffs">
+      <map>
+        <entry key="$PROJECT_DIR$/calculator/pubspec.yaml">
+          <value>
+            <PendingDiffInfo>
+              <option name="filePath" value="$PROJECT_DIR$/calculator/pubspec.yaml" />
+              <option name="originalContent" value="name: calculator&#10;description: A functional mobile grade calculator with themes.&#10;publish_to: 'none'&#10;&#10;version: 1.0.0+1&#10;&#10;environment:&#10;  sdk: '&gt;=3.0.0 &lt;4.0.0'&#10;&#10;dependencies:&#10;  flutter:&#10;    sdk: flutter&#10;  archive: ^3.4.0&#10;  xml: ^6.3.0&#10;  file_picker: ^6.1.1&#10;  excel: ^2.1.0&#10;  path_provider: ^2.1.2&#10;  provider: ^6.0.0&#10;&#10;dev_dependencies:&#10;  flutter_test:&#10;    sdk: flutter&#10;  flutter_lints: ^2.0.0&#10;&#10;flutter:&#10;  uses-material-design: true&#10;" />
+              <option name="updatedContent" value="name: calculator&#13;&#10;description: A functional mobile grade calculator with themes.&#13;&#10;publish_to: 'none'&#13;&#10;&#13;&#10;version: 1.0.0+1&#13;&#10;&#13;&#10;environment:&#13;&#10;  sdk: '&gt;=3.0.0 &lt;4.0.0'&#13;&#10;&#13;&#10;dependencies:&#13;&#10;  flutter:&#13;&#10;    sdk: flutter&#13;&#10;  archive: ^3.4.0&#13;&#10;  xml: ^6.3.0&#13;&#10;  file_picker: ^6.1.1&#13;&#10;  excel: ^2.1.0&#13;&#10;  path_provider: ^2.1.2&#13;&#10;  provider: ^6.0.0&#13;&#10;&#13;&#10;dev_dependencies:&#13;&#10;  flutter_test:&#13;&#10;    sdk: flutter&#13;&#10;  flutter_lints: ^2.0.0&#13;&#10;&#13;&#10;flutter:&#13;&#10;  uses-material-design: true" />
+            </PendingDiffInfo>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>
