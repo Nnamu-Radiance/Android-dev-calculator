@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:excel/excel.dart' hide Border;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:archive/archive.dart';
+import 'package:xml/xml.dart';
 import 'package:provider/provider.dart';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:archive/archive_io.dart';
-import 'package:xml/xml.dart';
-import 'package:file_picker/file_picker.dart';
-import 'dart:html' as html;
+
+// Small helper extension used in XML parsing
+extension FirstOrNullExtension<E> on Iterable<E> {
+  E? get firstOrNull => isEmpty ? null : first;
+}
 
 // ============================================================================
 // TYPE ALIASES & FUNCTION SIGNATURES
@@ -148,11 +155,10 @@ class DataTransformer {
   }
 
   static List<GradeEntry> getTopStudents(List<GradeEntry> students, int n) {
-    return students
-        .toList()
-      ..sort((a, b) => b.marks.compareTo(a.marks))
-      ..take(n)
-          .toList();
+    final list = students.toList();
+    list.sort((a, b) => b.marks.compareTo(a.marks));
+    if (n <= 0) return [];
+    return list.take(n).toList();
   }
 }
 
@@ -359,8 +365,10 @@ class ExcelIO {
           final t = si.findElements('t').firstOrNull;
           if (t != null) {
             sharedStrings[index] = t.innerText;
-            index++;
+          } else {
+            sharedStrings[index] = '';
           }
+          index++;
         }
       } catch (e) {
         print('Shared strings error: $e');
@@ -595,20 +603,30 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
       await Future.delayed(const Duration(milliseconds: 500));
 
-      final bytes = result.files.single.bytes;
-      if (bytes == null) {
+      final file = result.files.single;
+      List<GradeEntry> excelEntries = [];
+
+      if (file.bytes != null) {
+        // Web or if bytes were loaded
+        excelEntries = ExcelIO.readFromExcelBytes(
+          file.bytes!,
+          gradeFunc: gradeCalc,
+          gpaFunc: gpaCalc,
+          validator: (name, marks) => marks >= 0 && marks <= 100,
+        );
+      } else if (file.path != null) {
+        // Mobile / Desktop
+        excelEntries = ExcelIO.readFromExcel(
+          file.path!,
+          gradeFunc: gradeCalc,
+          gpaFunc: gpaCalc,
+          validator: (name, marks) => marks >= 0 && marks <= 100,
+        );
+      } else {
         setState(() => isLoading = false);
-        _showSnackBar('Could not read file', isError: true);
+        _showSnackBar('Could not read file data', isError: true);
         return;
       }
-
-      // For web, we need to use bytes directly
-      final excelEntries = ExcelIO.readFromExcelBytes(
-        bytes,
-        gradeFunc: gradeCalc,
-        gpaFunc: gpaCalc,
-        validator: (name, marks) => marks >= 0 && marks <= 100,
-      );
 
       setState(() {
         entries = excelEntries;
@@ -636,39 +654,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     );
   }
 
-  void _downloadExcel() {
-    if (entries.isEmpty) {
-      _showSnackBar('No students to download', isError: true);
-      return;
-    }
-
-    try {
-      // Create a simple CSV content instead (Excel can open CSV)
-      final csv = StringBuffer();
-      csv.write('Student Name,Marks,Grade,GPA\n');
-
-      for (final student in entries) {
-        csv.write('${student.name},${student.marks},${student.grade},${student.gpa}\n');
-      }
-
-      // Download as CSV (Excel can open this)
-      final blob = html.Blob([csv.toString()], 'text/csv;charset=utf-8');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.document.createElement('a') as html.AnchorElement
-        ..href = url
-        ..style.display = 'none'
-        ..download = 'grades_${DateTime.now().toString().replaceAll(RegExp(r'[:\s.]'), '_').substring(0, 19)}.csv';
-      html.document.body?.children.add(anchor);
-      anchor.click();
-      html.document.body?.children.remove(anchor);
-      html.Url.revokeObjectUrl(url);
-
-      _showSnackBar('Downloaded grades file successfully!');
-    } catch (e) {
-      _showSnackBar('Error downloading file: $e', isError: true);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -676,12 +661,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         title: const Text('Grade Calculator'),
         elevation: 0,
         actions: [
-          if (entries.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.download),
-              onPressed: _downloadExcel,
-              tooltip: 'Download Results as Excel',
-            ),
           IconButton(
             icon: const Icon(Icons.palette),
             onPressed: _showThemeSelector,
@@ -752,10 +731,25 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         _buildStatisticsSection(),
         const SizedBox(height: 24),
         if (entries.isNotEmpty) _buildTopPerformersSection(),
-        const SizedBox(height: 24),
-        _buildGradeDistributionSection(),
-        const SizedBox(height: 24),
-        _buildStudentListSection(),
+        const SizedBox(height: 32),
+        Center(
+          child: ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PreviewScreen(entries: entries),
+                ),
+              );
+            },
+            icon: const Icon(Icons.remove_red_eye),
+            label: const Text('Preview & Download Results'),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -821,7 +815,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     final topStudents = DataTransformer.getTopStudents(entries, 3);
     const medals = ['🥇', '🥈', '🥉'];
 
-    // Only show if there are students
     if (topStudents.isEmpty) {
       return Container();
     }
@@ -836,7 +829,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         const SizedBox(height: 12),
         ...List.generate(topStudents.length, (index) {
           final student = topStudents[index];
-          // Only use medal if index is within medals array
           final medal = index < medals.length ? medals[index] : '⭐';
           return Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -866,129 +858,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             ),
           );
         }),
-      ],
-    );
-  }
-
-  Widget _buildGradeDistributionSection() {
-    final distribution = DataTransformer.getGradeDistribution(entries);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Grade Distribution',
-          style: Theme.of(context).textTheme.displayLarge?.copyWith(fontSize: 20),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              children: distribution.entries.map((entry) {
-                final percentage = (entry.value / entries.length * 100).toStringAsFixed(0);
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 40,
-                        child: Text(
-                          entry.key,
-                          style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: LinearProgressIndicator(
-                            value: entry.value / entries.length,
-                            minHeight: 8,
-                            backgroundColor: Colors.grey.withOpacity(0.2),
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Theme.of(context).primaryColor,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      SizedBox(
-                        width: 45,
-                        child: Text(
-                          '${entry.value} ($percentage%)',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontSize: 12,
-                          ),
-                          textAlign: TextAlign.right,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStudentListSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'All Students',
-          style: Theme.of(context).textTheme.displayLarge?.copyWith(fontSize: 20),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: entries.length,
-            separatorBuilder: (_, __) => Divider(
-              color: Theme.of(context).primaryColor.withOpacity(0.2),
-            ),
-            itemBuilder: (context, index) {
-              final student = entries[index];
-              return ListTile(
-                title: Text(student.name),
-                subtitle: Text('${student.marks.toStringAsFixed(1)}/100'),
-                trailing: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).primaryColor.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        student.grade,
-                        style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'GPA: ${student.gpa.toStringAsFixed(1)}',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
       ],
     );
   }
@@ -1043,8 +912,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                           style: Theme.of(context).textTheme.bodyMedium,
                         ),
                         const Spacer(),
-                        if (isSelected)
-                          Icon(Icons.check, color: theme.primaryColor),
+                        if (isSelected) Icon(Icons.check, color: theme.primaryColor),
                       ],
                     ),
                   ),
@@ -1054,6 +922,163 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ],
         ),
       ),
+    );
+  }
+}
+
+// ============================================================================
+// PREVIEW SCREEN
+// ============================================================================
+
+class PreviewScreen extends StatelessWidget {
+  final List<GradeEntry> entries;
+
+  const PreviewScreen({Key? key, required this.entries}) : super(key: key);
+
+  void _showSnackBar(BuildContext context, String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  Future<void> _downloadExcel(BuildContext context) async {
+    if (entries.isEmpty) {
+      _showSnackBar(context, 'No students to download', isError: true);
+      return;
+    }
+
+    try {
+      final csv = StringBuffer();
+      csv.write('Student Name,Marks,Grade,GPA\n');
+
+      for (final student in entries) {
+        csv.write('${student.name},${student.marks},${student.grade},${student.gpa}\n');
+      }
+
+      final fileName = 'grades_${DateTime.now().toString().replaceAll(RegExp(r'[:\s.]'), '_').substring(0, 19)}.csv';
+
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/$fileName');
+      await file.writeAsString(csv.toString());
+
+      _showSnackBar(context, 'Saved to ${file.path}');
+    } catch (e) {
+      _showSnackBar(context, 'Error downloading file: $e', isError: true);
+    }
+  }
+
+  Future<void> _shareExcel(BuildContext context) async {
+    if (entries.isEmpty) {
+      _showSnackBar(context, 'No students to share', isError: true);
+      return;
+    }
+
+    try {
+      final csv = StringBuffer();
+      csv.write('Student Name,Marks,Grade,GPA\n');
+
+      for (final student in entries) {
+        csv.write('${student.name},${student.marks},${student.grade},${student.gpa}\n');
+      }
+
+      final fileName = 'grades_${DateTime.now().toString().replaceAll(RegExp(r'[:\s.]'), '_').substring(0, 19)}.csv';
+
+      final directory = await getTemporaryDirectory();
+      final file = File('${directory.path}/$fileName');
+      await file.writeAsString(csv.toString());
+
+      await Share.shareXFiles([XFile(file.path)], text: 'Grade Calculator Results');
+    } catch (e) {
+      _showSnackBar(context, 'Error sharing file: $e', isError: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Preview Results'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share),
+            onPressed: () => _shareExcel(context),
+            tooltip: 'Share Results',
+          ),
+          IconButton(
+            icon: const Icon(Icons.download),
+            onPressed: () => _downloadExcel(context),
+            tooltip: 'Download Results as CSV',
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _buildStudentListSection(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStudentListSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'All Students',
+          style: Theme.of(context).textTheme.displayLarge?.copyWith(fontSize: 20),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: entries.length,
+            separatorBuilder: (_, __) => Divider(
+              color: Theme.of(context).primaryColor.withOpacity(0.2),
+            ),
+            itemBuilder: (context, index) {
+              final student = entries[index];
+              return ListTile(
+                title: Text(student.name),
+                subtitle: Text('${student.marks.toStringAsFixed(1)}/100'),
+                trailing: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).primaryColor.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        student.grade,
+                        style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'GPA: ${student.gpa.toStringAsFixed(1)}',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
